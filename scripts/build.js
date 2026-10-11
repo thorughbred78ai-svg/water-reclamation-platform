@@ -10,7 +10,10 @@ const crypto = require("crypto");
 const xl = fs.readFileSync(path.join(root, "vendor/xlsx.full.min.js"));
 const pinned = read("vendor/xlsx.full.min.js.sha256").trim().split(/\s+/)[0];
 const actual = crypto.createHash("sha256").update(xl).digest("hex");
-if (actual !== pinned) throw new Error(`SheetJS SHA-256 不符：預期 ${pinned}，實際 ${actual}`);
+if (actual !== pinned) throw new Error(
+  `SheetJS SHA-256 不符（建置中止，這是完整性保護）\n  釘選值：${pinned}\n  實際值：${actual}\n  檔案大小：${xl.length} bytes（原發行檔為 951904）\n` +
+  `  排查：1) 是否替換過 vendor/xlsx.full.min.js 但未更新 .sha256？ 2) 是否被換行轉換（需 .gitattributes 的 vendor/* -text）？\n` +
+  `  請先執行 node scripts/verify-sheetjs.js 與官方檔比對，確認可信後才更新 .sha256。`);
 if (!tpl.includes("/*SHEETJS*/")) throw new Error("template 缺少 /*SHEETJS*/ 佔位符");
 const html = tpl.replace("/*ENGINE*/", () => engine).replace("/*SHEETJS*/", () => xl.toString("base64"));
 const dist = path.join(root, "dist");
