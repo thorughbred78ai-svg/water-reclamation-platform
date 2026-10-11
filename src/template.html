@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-src about:; img-src data: blob:; connect-src 'none'; font-src data:">
+<title>水資源回收中心整合平台</title>
+<style>
+:root{--bg:#071521;--pn:#0d2231;--ln:#28536a;--tx:#eaf7ff;--mu:#8eafbf;--ac:#18d6ff;--ok:#24e28a;--wn:#ffc857;--er:#ff5570}
+@media(prefers-color-scheme:light){:root{--bg:#eef3f8;--pn:#fff;--ln:#c9d6e2;--tx:#16283a;--mu:#5b6f82;--ac:#0878c9;--ok:#0f8a52;--wn:#a86a00;--er:#c4233b}}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif}
+.app{height:100dvh;display:flex;flex-direction:column;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+header{padding:8px 14px;background:var(--pn);border-bottom:1px solid var(--ln);display:flex;justify-content:space-between;gap:10px;align-items:center}
+h1{font-size:clamp(14px,2.4vw,18px);margin:0}.sub{font-size:11px;color:var(--mu)}
+nav{display:flex;overflow-x:auto;background:var(--pn);border-bottom:1px solid var(--ln)}
+nav button{flex:0 0 auto;border:0;background:none;color:var(--mu);padding:12px 15px;font:inherit;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+nav button[aria-selected=true]{color:var(--ac);font-weight:800;border-bottom-color:var(--ac)}
+:focus-visible{outline:2px solid var(--ac);outline-offset:-2px}
+main{flex:1;min-height:0;position:relative}.pane{position:absolute;inset:0;display:none;overflow:auto;padding:12px}.pane.on{display:block}
+.pane.fr{padding:0;overflow:hidden}iframe{width:100%;height:100%;border:0;background:#fff}
+.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.card{background:var(--pn);border:1px solid var(--ln);border-radius:10px;padding:10px}.card b{display:block;font-size:20px}.card span{font-size:12px;color:var(--mu)}
+.tw{overflow-x:auto;margin:10px 0}table{border-collapse:collapse;width:100%;font-size:13px;background:var(--pn)}
+th,td{border:1px solid var(--ln);padding:5px 8px;text-align:right;white-space:nowrap}th{background:rgba(24,214,255,.12)}td:first-child,th:first-child{text-align:left}
+input,select,button.b{font:inherit;background:var(--bg);color:var(--tx);border:1px solid var(--ln);border-radius:6px;padding:5px 8px}input{width:100%;min-width:64px}
+button.b{cursor:pointer}button.p{background:var(--ac);color:#00151f;font-weight:700}
+.chip{display:inline-block;padding:3px 10px;border-radius:12px;font-weight:700;font-size:12px}
+.BALANCED{background:var(--ok);color:#00150b}.UNBALANCED,.NOT_CONVERGED{background:var(--er);color:#fff}
+.w{color:var(--wn)}.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+.split{display:grid;gap:10px;grid-template-columns:minmax(0,2fr) minmax(260px,1fr)}@media(max-width:800px){.split{grid-template-columns:1fr}nav button{padding:10px 11px;font-size:13px}.sub{display:none}}
+svg{width:100%;height:auto;background:var(--pn);border:1px solid var(--ln);border-radius:10px;touch-action:pan-x pan-y}
+.u{cursor:grab;touch-action:none}.u:active{cursor:grabbing}.msg{min-height:1.2em}.u rect{fill:var(--bg);stroke:var(--ac);stroke-width:2}.u.sel rect{stroke:var(--wn);stroke-width:4}.u text{fill:var(--tx);font-size:15px;text-anchor:middle}
+.doc{max-width:900px;margin:auto;line-height:1.7}.doc li{margin:5px 0}h3{margin:14px 0 6px}
+.badge{position:fixed;left:8px;bottom:8px;pointer-events:none;background:rgba(255,200,87,.92);color:#2a1d00;font:700 11px sans-serif;padding:4px 9px;border-radius:12px}
+</style></head><body>
+<div class="app"><header><div><h1>水資源回收中心整合平台</h1><div class="sub">單一資料模型・穩態質量平衡・本機執行</div></div><span id="chip" class="chip"></span></header>
+<nav role="tablist" aria-label="功能頁籤"></nav><main></main></div><div class="badge">示範數據・非正式設計值</div>
+<script id="sheetjs" type="text/plain">/*SHEETJS*/</script>
+<script>
+"use strict";
+/*ENGINE*/
+const $=(t,p,k)=>{const e=document.createElement(t);Object.assign(e,p||{});(k||[]).forEach(x=>e.append(x));return e};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const f=(v,d=2)=>Number.isFinite(v)?v.toLocaleString("zh-TW",{minimumFractionDigits:d,maximumFractionDigits:d}):"-";
+let M=defaultModel(),R=solve(M),selU="T01-05";const uName=id=>M.units.find(u=>u.id===id)?.name||id;
+const conc=(L,Q)=>Q>1e-9?L*1000/Q:0;
+const TABS=[["ov","📊 總覽"],["pfd","🗺 流程圖"],["par","⚙ 單元與進水參數"],["stm","🔀 流股"],["bal","⚖ 質量平衡"],["slu","🟤 污泥線"],["eng","⚡ 智慧節能"],["io","💾 匯入匯出"],["doc","🛡 說明與檢查報告"]];
+const nav=document.querySelector("nav"),main=document.querySelector("main"),P={};
+TABS.forEach(([id,t],i)=>{const b=$("button",{id:"t-"+id,textContent:t,type:"button",role:"tab"});b.onclick=()=>show(id);
+ b.onkeydown=e=>{const d={ArrowRight:1,ArrowLeft:-1}[e.key];if(d){const n=TABS[(i+d+TABS.length)%TABS.length][0];show(n);document.getElementById("t-"+n).focus()}};nav.append(b);
+ P[id]=$("section",{className:"pane"+(id==="eng"?" fr":""),id:"p-"+id});P[id].setAttribute("role","tabpanel");main.append(P[id])});
+let cur="ov";
+function show(id){if(!P[id])id="ov";cur=id;TABS.forEach(([k])=>{const on=k===id;P[k].classList.toggle("on",on);const b=document.getElementById("t-"+k);b.setAttribute("aria-selected",on);b.tabIndex=on?0:-1});render();try{history.replaceState(null,"","#"+id)}catch(e){}}
+function refresh(){R=solve(M);document.getElementById("chip").className="chip "+R.G.status;document.getElementById("chip").textContent={BALANCED:"平衡 BALANCED",UNBALANCED:"不平衡 UNBALANCED",NOT_CONVERGED:"未收斂"}[R.G.status];render()}
+const tbl=(h,rows)=>`<div class="tw"><table><thead><tr>${h.map(x=>`<th>${esc(x)}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+function render(){const el=P[cur];if(cur==="par"&&el.querySelector("input:focus,select:focus"))return;R_[cur]&&(el.innerHTML=R_[cur]());B_[cur]&&B_[cur](el)}
+const R_={},B_={};
+R_.ov=()=>{const G=R.G,eff=R.res["T01-09"],cake=R.res["T01-13"],c=p=>conc(eff.Lin[p],eff.Qin);
+ return `<div class="grid">${[["進流水量",f(R.Q0,0)+" m³/d"],["放流水量",f(eff.Qin,0)+" m³/d"],["濾餅量",f(cake.tQ,1)+" m³/d"],["濾餅乾固體",f(cake.tL.SS,0)+" kg/d"],["求解",R.conv?R.iters+" 次收斂":"未收斂"]].map(([a,b])=>`<div class="card"><span>${a}</span><b>${b}</b></div>`).join("")}</div>
+ <h3>放流水質與全廠去除率</h3>${tbl(["項目","進流 mg/L","放流 mg/L","去除率 %","進流 kg/d","放流 kg/d"],POL.map(p=>[PN[p],f(M.source.C[p]),f(c(p)),f((1-eff.Lin[p]/R.srcL[p])*100,1),f(R.srcL[p]),f(eff.Lin[p])]))}
+ ${R.warn.length?`<div class="w"><b>警示</b><ul>${R.warn.map(w=>`<li>${esc(w)}</li>`).join("")}</ul></div>`:""}<p class="sub">放流去除率含污泥與生物轉化；結果為模型試算，須人工覆核。</p>`};
+const colr={water:"#18a8e0",sludge:"#b9803a",recycle:"#2fd07f",internal:"#ff963d",filtrate:"#c070ff"};
+const clip=(x1,y1,x2,y2)=>{const dx=x2-x1,dy=y2-y1;if(!dx&&!dy)return[x2,y2];const t=Math.min(dx?75/Math.abs(dx):1e9,dy?30/Math.abs(dy):1e9);return[x2-dx*t,y2-dy*t]};
+function svgInner(){const C=id=>{const a=M.units.find(u=>u.id===id);return[a.x+75,a.y+30]};
+ const ed=M.streams.map(s=>{const[x1,y1]=C(s.from),[x2,y2]=C(s.to),q=R.st[s.id]?R.st[s.id].Q:0,c=colr[s.type]||"#999";
+  if(s.from===s.to){const u=M.units.find(u=>u.id===s.from);return `<path d="M${u.x+120},${u.y} c0,-50 60,-50 60,0" fill="none" stroke="${c}" stroke-width="2.5" marker-end="url(#a)"/><text x="${u.x+75}" y="${u.y-34}" fill="${c}" font-size="12" text-anchor="middle">${esc(s.id)} ${f(q,0)}</text>`}
+  const[ex,ey]=clip(x1,y1,x2,y2),[sx,sy]=clip(x2,y2,x1,y1),off={recycle:-22,filtrate:22}[s.type]||0;
+  return `<path d="M${sx},${sy+off} L${ex},${ey+off}" stroke="${c}" stroke-width="2.5" marker-end="url(#a)"${off?' stroke-dasharray="6 4"':""}/><text x="${(sx+ex)/2}" y="${(sy+ey)/2+off-6}" fill="${c}" font-size="12" text-anchor="middle">${esc(s.id)} ${f(q,0)}</text>`}).join("");
+ return ed+M.units.map(u=>`<g class="u${u.id===selU?" sel":""}" data-u="${esc(u.id)}" tabindex="0" role="button" aria-label="${esc(u.name)}，方向鍵可移動"><rect x="${u.x}" y="${u.y}" width="150" height="60" rx="8"/><text x="${u.x+75}" y="${u.y+26}">${esc(u.name)}</text><text x="${u.x+75}" y="${u.y+46}" style="font-size:11px;fill:var(--mu)">${esc(u.id)}</text></g>`).join("")}
+const nid=(pre,list)=>{let i=list.length+1,id;do{id=pre+String(i++).padStart(2,"0")}while(list.some(x=>x.id===id));return id};
+const uopt=()=>M.units.map(x=>`<option value="${esc(x.id)}">${esc(x.id)} ${esc(x.name)}</option>`).join("");
+const TL={water:"水",sludge:"污泥",recycle:"回流污泥",internal:"內循環",filtrate:"濾液回流"},UL={water:"一般水處理",clarifier:"沉澱池",biological:"生物反應池",filter:"過濾",sink:"末端／放流",sludge:"污泥處理"};
+const streamForm=()=>`<div class="row"><b>新增流股</b><select data-k="from" aria-label="來源">${uopt()}</select>→<select data-k="to" aria-label="目標">${uopt()}</select><select data-k="type" aria-label="類型">${ST.map(t=>`<option value="${t}">${TL[t]}</option>`).join("")}</select><input data-k="pct" type="number" min="0" step="any" value="100" style="width:90px" aria-label="參數%" title="water/sludge/filtrate＝分流權重；recycle/internal＝回流比%"><button class="b p" data-act="as" type="button">新增流股</button></div>`;
+function addUnit(name,type){name=String(name||"").trim().slice(0,40);if(!name)return"請輸入單元名稱";if(!UT.includes(type)||type==="source")return"類型不合法（進流水單元只能有一個）";const id=nid("T01-",M.units);
+ M.units.push({id,name,type,x:80,y:Math.max(...M.units.map(u=>u.y))+100,eta:Z(),cap:Z(),qLoss:0,ts:0,conc:20000,chemP:0,chemYield:2.5,filt:0});selU=id;return""}
+function addStream(from,to,type,pct){pct=parseFloat(pct);const has=id=>M.units.some(u=>u.id===id);if(!has(from)||!has(to))return"端點不存在";if(!ST.includes(type))return"類型不合法";if(!(pct>=0&&pct<=1e4))return"參數須介於 0–10000";
+ if(from===to&&type!=="internal"&&type!=="recycle")return"自我迴圈僅限回流污泥／內循環";if(M.units.find(u=>u.id===to).type==="source")return"不可流入進流水單元";
+ M.streams.push({id:nid({water:"W-",sludge:"S-",recycle:"R-",internal:"R-",filtrate:"F-"}[type],M.streams),from,to,type,pct});return""}
+function delUnit(){const u=M.units.find(x=>x.id===selU);if(!u)return"";if(u.type==="source")return"進流水（source）單元不可刪除";
+ if(!confirm(`刪除單元 ${u.id} ${u.name} 及所有相連流股？此操作不可復原（建議先匯出 JSON 備份）。`))return"";M.units=M.units.filter(x=>x!==u);M.streams=M.streams.filter(s=>s.from!==u.id&&s.to!==u.id);selU=M.units[0].id;return""}
+function delStream(id){if(!confirm(`刪除流股 ${id}？`))return"";M.streams=M.streams.filter(s=>s.id!==id);return""}
+function bindActs(el){el.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>{const q=k=>el.querySelector(`[data-k="${k}"]`)?.value,a=b.dataset.act;let m="";
+ if(a==="au")m=addUnit(q("name"),q("utype"));else if(a==="as")m=addStream(q("from"),q("to"),q("type"),q("pct"));else if(a==="du")m=delUnit();else if(a==="ds")m=delStream(b.dataset.id);
+ if(m){el.querySelector(".msg").textContent=m}else refresh()})}
+R_.pfd=()=>{const w=Math.max(1780,...M.units.map(u=>u.x+200)),h=Math.max(680,...M.units.map(u=>u.y+120));
+ return `<div class="row"><b>單元</b><input data-k="name" placeholder="新單元名稱" maxlength="40" aria-label="新單元名稱"><select data-k="utype" aria-label="單元類型">${UT.filter(t=>t!=="source").map(t=>`<option value="${t}">${UL[t]}</option>`).join("")}</select><button class="b p" data-act="au" type="button">新增單元</button><button class="b" data-act="du" type="button">刪除選取單元</button></div>${streamForm()}<div class="msg w" role="status"></div>
+ <div class="split"><div><svg viewBox="0 0 ${w} ${h}" aria-label="廠區流程圖"><defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="#8eafbf"/></marker></defs><g id="gx">${svgInner()}</g></svg>
+ <p class="sub">拖曳單元可移動（聚焦後方向鍵微調）；位置不影響計算。藍＝水、褐＝污泥、綠虛線＝回流污泥、橘＝內循環、紫虛線＝濾液回流。線上數字＝m³/d。</p></div><div id="det" class="card"></div></div>`};
+function det(el){const r=R.res[selU]||R.res[M.units[0].id],u=r.u;el.querySelector("#det").innerHTML=`<h3 style="margin-top:0">${esc(u.name)} <small>${esc(u.id)}</small></h3><div>進流 Q = ${f(r.Qin)} m³/d；側流水 ${f(r.Qside)}；污泥 Q ${f(r.Qs)} m³/d</div>
+ ${tbl(["項目","Lin","去除 R","污泥 S","轉化/其他 X","誤差"],POL.map(p=>[PN[p],f(r.Lin[p]),f(r.R[p]),f(r.S[p]),f(r.X[p]),r.errL[p].toExponential(1)]))}
+ <div class="sub">公式：Load(kg/d)=Q×C×10⁻³；R=Lin×η；S=R×捕獲率；濾液負荷＝(R−S)×濾液%；X＝其餘。Lin(+化學污泥)＝Lout＋X。水量誤差 ${r.errQ.toExponential(1)}</div>`}
+B_.pfd=el=>{bindActs(el);const svg=el.querySelector("svg"),gx=svg.querySelector("#gx");let d=null;
+ const pt=e=>{const p=svg.createSVGPoint();p.x=e.clientX;p.y=e.clientY;return p.matrixTransform(svg.getScreenCTM().inverse())};
+ const snap=v=>Math.round(Math.max(0,Math.min(4000,v))/10)*10,foc=id=>el.querySelector(`.u[data-u="${id}"]`)?.focus();
+ svg.onpointerdown=e=>{const g=e.target.closest(".u");if(!g)return;const u=M.units.find(x=>x.id===g.dataset.u),p=pt(e);d={u,dx:p.x-u.x,dy:p.y-u.y};try{svg.setPointerCapture(e.pointerId)}catch(x){}e.preventDefault()};
+ svg.onpointermove=e=>{if(!d)return;const p=pt(e),nx=snap(p.x-d.dx),ny=snap(p.y-d.dy);if(nx!==d.u.x||ny!==d.u.y){d.u.x=nx;d.u.y=ny;selU=d.u.id;gx.innerHTML=svgInner()}};
+ svg.onpointerup=svg.onpointercancel=()=>{if(!d)return;selU=d.u.id;d=null;render()};
+ svg.onkeydown=e=>{const g=e.target.closest(".u");if(!g)return;const u=M.units.find(x=>x.id===g.dataset.u),k={ArrowLeft:[-10,0],ArrowRight:[10,0],ArrowUp:[0,-10],ArrowDown:[0,10]}[e.key];
+  if(k){e.preventDefault();u.x=snap(u.x+k[0]);u.y=snap(u.y+k[1])}else if(e.key!=="Enter"&&e.key!==" ")return;else e.preventDefault();selU=u.id;render();foc(u.id)};
+ det(el)};
+const pc=v=>f(v*100,1);
+R_.par=()=>{const u=M.units.find(x=>x.id===selU)||M.units[0],S=M.source;
+ return `<h3>進水條件（水質 mg/L）</h3><div class="grid">${[["Q","設計水量 m³/d",S.Q],["factor","水量係數",S.factor],...POL.map(p=>["C_"+p,PN[p]+" mg/L",S.C[p]])].map(([k,l,v])=>`<label class="card"><span>${l}</span><input data-s="${k}" type="number" step="any" min="0" value="${v}"></label>`).join("")}</div>
+ <h3>單元參數</h3><div class="row"><label class="card"><span>單元名稱</span><input data-n type="text" maxlength="40" value="${esc(u.name)}"></label><select id="us">${M.units.map(x=>`<option value="${esc(x.id)}"${x.id===u.id?" selected":""}>${esc(x.id)} ${esc(x.name)}</option>`).join("")}</select></div>
+ ${tbl(["項目",...POL.map(p=>PN[p])],[["去除率 η %",...POL.map(p=>`<input data-e="${p}" type="number" step="any" min="0" max="100" value="${pc(u.eta[p])}">`)],["污泥捕獲率 %",...POL.map(p=>`<input data-c="${p}" type="number" step="any" min="0" max="100" value="${pc(u.cap[p])}">`)]])}
+ <div class="grid">${[["qLoss","其他水損失 %",pc(u.qLoss)],["ts","出泥固體 TS %（0=不設）",u.ts],["conc","污泥 SS mg/L",u.conc],["chemP","化學除磷 %",pc(u.chemP)],["chemYield","化學污泥 kgSS/kgP",u.chemYield],["filt","帶入濾液的去除負荷 %（需有濾液流股）",pc(u.filt)]].map(([k,l,v])=>`<label class="card"><span>${l}</span><input data-u="${k}" type="number" step="any" min="0" value="${v}"></label>`).join("")}</div>
+ <p class="sub">輸入即時驗證並重算（去除率／捕獲率限制 0–100%）。</p>`};
+B_.par=el=>{const u=()=>M.units.find(x=>x.id===selU);
+ el.querySelector("#us").onchange=e=>{selU=e.target.value;e.target.blur();render()};
+ el.querySelectorAll("input").forEach(i=>i.onchange=()=>{if(i.dataset.n!==undefined){u().name=i.value.trim().slice(0,40)||u().id;i.blur();refresh();return}let v=parseFloat(i.value);if(!Number.isFinite(v)||v<0)v=0;const d=i.dataset;
+  if(d.s){if(d.s==="Q"||d.s==="factor")M.source[d.s]=v;else M.source.C[d.s.slice(2)]=v}
+  else if(d.e)u().eta[d.e]=Math.min(100,v)/100;else if(d.c)u().cap[d.c]=Math.min(100,v)/100;
+  else if(d.u){const pcts=["qLoss","chemP","filt"];u()[d.u]=pcts.includes(d.u)?Math.min(100,v)/100:v}
+  refresh()})};
+const effC=(r,p)=>{const t=r.G.terms.filter(t=>M.streams.some(s=>s.to===t.id&&s.type==="water")),Q=t.reduce((a,x)=>a+x.Q,0);return Q>1e-9?t.reduce((a,x)=>a+x.L[p],0)*1000/Q:0};
+R_.eng=()=>{const x=energy(M,R),E=M.energy;
+ const inputs=`<details><summary><b>能耗參數（可編輯；預設為教科書典型範圍／占位值，請以現場量測與設備資料取代）</b></summary><div class="grid" style="margin-top:8px">${Object.keys(ER).map(k=>`<label class="card"><span>${esc(EL[k])}</span><input data-e="${k}" type="number" step="any" min="${ER[k][0]}" max="${ER[k][1]}" value="${E[k]}"></label>`).join("")}</div></details>`;
+ if(!R.conv)return `<p class="w">求解未收斂，能耗不顯示。</p>`+inputs;
+ if(!x.valid)return `<p class="w">無法計算曝氣：α·F·(β·Cs−DO) ≤ 0，請降低 DO 設定值或檢查係數。</p>`+inputs;
+ const mx=Math.max(...x.items.map(i=>i.kWhd),1),aer=x.items[0].kWhd/x.total*100;
+ const cards=[["總耗電",f(x.total,0)+" kWh/d"],["平均功率",f(x.avgKW,1)+" kW"],["單位水量電耗",f(x.perM3,3)+" kWh/m³"],["單位 BOD 去除電耗",f(x.perBOD,2)+" kWh/kgBOD"],["曝氣占比",f(aer,0)+" %"],["年電費（占位電價）","NT$ "+f(x.costYear,0)],["需氧量 AOR",f(x.AOR,0)+" kgO₂/d"],["標準需氧 SOTR",f(x.SOTR,0)+" kgO₂/d"],["空氣量",f(x.air,0)+" Nm³/h"]];
+ const doRows=[1,1.5,2,2.5,3].map(d=>{const y=energy(M,R,{DO:d});return[f(d,1)+(d===E.DO?"（目前）":""),y.valid?f(y.total,0):"-",y.valid?f(y.total-x.total,0):"-",y.valid?f((y.total-x.total)*365*E.tariff,0):"-"]});
+ const hasInt=M.streams.some(s=>s.type==="internal"),irRows=hasInt?[100,200,300,400].map(p=>{const m2=JSON.parse(JSON.stringify(M));m2.streams.forEach(s=>{if(s.type==="internal")s.pct=p});const r2=solve(m2),y=energy(m2,r2);return[p+" %",r2.conv&&y.valid?f(y.total,0):"-",r2.conv&&y.valid?f(y.total-x.total,0):"-",r2.conv?f(effC(r2,"TN")):"-",r2.G.status]}):[];
+ return `<div class="grid">${cards.map(([a,b])=>`<div class="card"><span>${a}</span><b style="font-size:17px">${b}</b></div>`).join("")}</div>
+ <h3>耗電分項</h3>${tbl(["項目","kW","kWh/d","占比",""],x.items.map(i=>[esc(i.name),f(i.kW,2),f(i.kWhd,0),f(i.kWhd/x.total*100,1)+"%",`<div style="background:var(--ac);height:10px;border-radius:4px;width:${Math.max(2,i.kWhd/mx*160)}px"></div>`]))}
+ <h3>泵浦明細</h3>${tbl(["泵浦","流量 m³/d","揚程 m","效率","kW"],x.pumps.map(p=>[esc(p.name),f(p.Q,0),f(p.H,1),f(p.eta*100,0)+"%",f(p.kW,2)]))}
+ <h3>情境試算 A：DO 設定值（僅能耗；水質影響須另行評估）</h3>${tbl(["DO mg/L","總耗電 kWh/d","相對目前 kWh/d","年電費差 NT$"],doRows)}
+ ${hasInt?`<h3>情境試算 B：內循環比（重新求解質量平衡）</h3>${tbl(["內循環比","總耗電 kWh/d","相對目前 kWh/d","放流 TN mg/L","平衡"],irRows)}<p class="w">模型的去除率為固定輸入，TN 結果不會隨回流比改變生物脫硝效能；欲評估水質請自行調整單元去除率並由專業人員判斷。</p>`:""}
+ <p class="sub">公式：AOR＝oBOD×BOD去除＋4.57×硝化NH₃-N−2.86×脫硝N；SOTR＝AOR÷[αF(βCs,T−DO)/Cs,20×θ^(T−20)]；空氣量＝SOTR÷(0.279×SOTE)；鼓風機功率＝ṁ·cp·T₁·[(P₂/P₁)^0.2857−1]÷η；泵浦 P＝ρgQH÷η。硝化量取生物池 NH₃-N 去除、脫硝量取 TN 去除×脫硝比例（簡化假設，TN 去除含同化）。未含攪拌、加熱、藥劑、儀控、照明與空調。結果為輔助估算，僅供參考，須人工確認；本頁不對任何設備下達控制。</p>${inputs.replace("<details>","<details style='margin-top:10px'>")}`};
+B_.eng=el=>el.querySelectorAll("input[data-e]").forEach(i=>i.onchange=()=>{const k=i.dataset.e,v=parseFloat(i.value);if(Number.isFinite(v))M.energy[k]=Math.min(ER[k][1],Math.max(ER[k][0],v));i.blur();refresh()});
+R_.stm=()=>streamForm()+`<div class="msg w" role="status"></div>`+tbl(["ID","來源","目標","類型","參數 %","Q m³/d",...POL.map(p=>PN[p]+" mg/L"),"操作"],M.streams.map(s=>{const t=R.st[s.id];return[esc(s.id),esc(uName(s.from)),esc(uName(s.to)),esc(TL[s.type]||s.type),`<input data-p="${esc(s.id)}" type="number" step="any" min="0" value="${s.pct}">`,f(t.Q),...POL.map(p=>f(conc(t.L[p],t.Q))),`<button class="b" data-act="ds" data-id="${esc(s.id)}" type="button">刪除</button>`]}))+`<p class="sub">參數：water/sludge/filtrate＝分流權重；recycle/internal＝回流比（相對設計進流量 Q，例如 RAS 50、內循環 200）。濾液流股的水量＝濃縮／脫水排水，負荷＝單元「帶入濾液%」。</p>`;
+B_.stm=el=>{bindActs(el);el.querySelectorAll("input[data-p]").forEach(i=>i.onchange=()=>{const s=M.streams.find(x=>x.id===i.dataset.p);s.pct=Math.max(0,Math.min(1e4,parseFloat(i.value)||0));refresh()})};
+R_.bal=()=>{const G=R.G,fm=v=>v.toExponential(1),tl=Math.max(M.params.errAbs,0);
+ const rows=[["水量 m³/d",f(R.Q0),"-",f(G.term.Q),"-",f(G.side),fm(G.errQ)],...POL.map(p=>[PN[p]+" kg/d",f(R.srcL[p]),f(p==="SS"?G.gen:0),f(G.term.L[p]),f(G.X[p]),"-",fm(G.errL[p])])];
+ return `<p>狀態：<span class="chip ${G.status}">${G.status}</span> 容許誤差：max(${M.params.errAbs} , ${M.params.errRel}×進流量)</p>
+ <h3>全廠平衡：進流 + 化學產生 = 末端輸出 + 轉化/其他移除 + 側流水</h3>${tbl(["項目","進流","化學產生","末端輸出","轉化/其他","側流水","誤差"],rows)}
+ <h3>末端輸出明細</h3>${tbl(["單元","Q m³/d",...POL.map(p=>PN[p]+" kg/d")],G.terms.map(t=>[esc(t.name),f(t.Q),...POL.map(p=>f(t.L[p]))]))}
+ <h3>各單元平衡檢核（由實際流股獨立重算）</h3>${tbl(["單元","Qin","Q誤差",...POL.map(p=>PN[p]+" 誤差")],M.units.map(u=>{const r=R.res[u.id];return[esc(u.name),f(r.Qin),fm(r.errQ),...POL.map(p=>fm(r.errL[p]))]}))}
+ <p class="sub">求解：${R.iters} 次迭代，最大變化量 ${R.delta.toExponential(1)}。</p>`};
+R_.slu=()=>{const ids=["T01-04","T01-06","T01-10","T01-11","T01-12","T01-13"].filter(i=>R.res[i]);
+ return tbl(["單元","進泥 Q m³/d","進泥 SS kg/d","進泥 TS %","出泥/濾餅 Q m³/d","出泥 SS kg/d","濾液/側流水 m³/d"],ids.map(i=>{const r=R.res[i],out=M.streams.filter(s=>s.from===i&&s.type==="sludge"),Qo=out.reduce((a,s)=>a+R.st[s.id].Q,0)+r.tQ,So=out.reduce((a,s)=>a+R.st[s.id].L.SS,0)+r.tL.SS;
+  return[esc(r.u.name),f(r.Qin),f(r.Lin.SS),f(r.Qin>1e-9?r.Lin.SS/r.Qin/10:0,2),f(Qo),f(So),f(r.Qside+M.streams.filter(s=>s.from===i&&s.type==="filtrate").reduce((a,s)=>a+R.st[s.id].Q,0))]}))+`<p class="sub">污泥線已納入網路求解（舊版污泥計算在網路外，與水線不守恆）。TS%＝SS÷Q÷10。</p>`};
+R_.io=()=>`<div class="row"><button class="b p" data-a="ej" type="button">匯出 JSON</button><label class="b">匯入 JSON<input data-a="ij" type="file" accept=".json,application/json" hidden></label><button class="b p" data-a="ex" type="button">匯出 Excel</button><label class="b">匯入 Excel<input data-a="ix" type="file" accept=".xlsx,.xls" hidden></label><button class="b" data-a="ec" type="button">匯出結果 CSV</button><button class="b" data-a="rs" type="button">還原示範資料</button></div><div class="msg w" role="status"></div><p class="sub">匯入檔視為不受信任輸入：JSON 2MB／Excel 5MB 上限、每工作表 ≤1000 列，逐欄驗證 ID、型別與範圍，失敗時不覆蓋現有模型。Excel 匯出會對以 = + - @ 開頭的文字加前綴避免公式注入；匯入讀取 Source／Units／Streams 三個工作表，其餘為結果參考。Excel 功能使用內嵌的 SheetJS，可離線使用。</p>`;
+function dl(name,part,type){const a=$("a",{href:URL.createObjectURL(new Blob([part],{type})),download:name});document.body.append(a);a.click();a.remove()}
+let XL=null;const loadXL=()=>XL||(XL=new Promise((ok,no)=>{if(window.XLSX)return ok(window.XLSX);try{const b=atob(document.getElementById("sheetjs").textContent.trim()),a=Uint8Array.from(b,c=>c.charCodeAt(0));
+ document.head.append($("script",{textContent:new TextDecoder().decode(a)}));window.XLSX?ok(window.XLSX):no(new Error("內嵌 SheetJS 初始化失敗"))}catch(e){XL=null;no(new Error("內嵌 SheetJS 載入失敗："+e.message))}}));
+B_.io=el=>{const msg=t=>el.querySelector(".msg").textContent=t,A=k=>el.querySelector(`[data-a="${k}"]`);
+ const apply=(o,ok)=>{const er=validate(o);if(er.length)return msg("匯入失敗，已保留原模型："+er.join("；"));M=buildModel(o);selU=M.units[0].id;refresh();P.io.querySelector(".msg").textContent=ok};
+ A("ej").onclick=()=>dl("plant_model.json",JSON.stringify({schema:"wrc-model-2",...M},null,1),"application/json");
+ A("ec").onclick=()=>{const q=v=>`"${String(v).replace(/"/g,'""')}"`,g=v=>typeof v==="string"&&/^[=+\-@]/.test(v)?"'"+v:v;dl("results.csv","\ufeff"+["單元,Qin,"+POL.map(p=>p+"_in").join(",")+",Q誤差"].concat(M.units.map(u=>{const r=R.res[u.id];return[q(g(u.name)),r.Qin,...POL.map(p=>r.Lin[p]),r.errQ].join(",")})).join("\n"),"text/csv")};
+ A("rs").onclick=()=>{M=defaultModel();selU="T01-05";refresh()};
+ A("ij").onchange=async e=>{const fl=e.target.files[0];if(!fl)return;if(fl.size>2e6)return msg("檔案超過 2MB");try{apply(JSON.parse(await fl.text()),"JSON 匯入成功")}catch(x){msg("JSON 解析失敗")}};
+ A("ex").onclick=async()=>{try{const X=await loadXL(),sh=modelToSheets(M,R),wb=X.utils.book_new();Object.entries(sh).forEach(([k,v])=>X.utils.book_append_sheet(wb,X.utils.json_to_sheet(v),k));
+  dl("plant_model.xlsx",X.write(wb,{type:"array",bookType:"xlsx"}),"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");msg("已匯出 plant_model.xlsx")}catch(x){msg(x.message)}};
+ A("ix").onchange=async e=>{const fl=e.target.files[0];if(!fl)return;if(fl.size>5e6)return msg("檔案超過 5MB");
+  try{const X=await loadXL(),wb=X.read(await fl.arrayBuffer(),{type:"array",cellFormula:false,cellHTML:false}),sh={};
+   for(const n of["Source","Units","Streams"]){if(!wb.Sheets[n])return msg("缺少工作表："+n);const rows=X.utils.sheet_to_json(wb.Sheets[n],{defval:""});if(rows.length>1000)return msg(n+" 超過 1000 列");sh[n]=rows}
+   apply(sheetsToModel(sh),"Excel 匯入成功")}catch(x){msg("Excel 讀取失敗："+x.message)}};};
+R_.doc=()=>`<div class="doc"><h3>原求解器檢查報告（water_reclamation_engineering.html）</h3><ol>
+<li><b>回流比被當成分流比（高）</b>：RAS 50%、內循環 200% 與主流程共用 split 正規化，實際 RAS＝100/（100+50）…，並非 Q 的 50%／200%。新版改為相對設計 Q 的回流比。</li>
+<li><b>污泥線未被網路求解（高）</b>：混合、濃縮、消化、脫水的出流皆為 sludge 類型而被略過，污泥量改由獨立公式估算，與水線不守恆。新版納入同一網路並以出泥 TS% 計算流量。</li>
+<li><b>全廠平衡定義錯誤（高）</b>：舊版用「進流 − 放流單元進流」當誤差，把污泥與去除量全算成誤差，無法判定是否平衡。新版為 進流＋化學產生＝末端輸出＋轉化/其他移除＋側流水。</li>
+<li><b>單元誤差混入去除量（中）</b>：舊版 Lin−Lout 未扣除轉化量。新版由實際流股獨立重算，並分列 R、S、X。</li>
+<li><b>水量不守恆（中）</b>：污泥 Q 另算，水側 Qout 未扣除。新版 Qw＝Qin−Qs−Q損失。</li>
+<li><b>寫死單元 ID（中）</b>：T01-01／04／06／09 寫死於求解與污泥計算。新版依單元類型與流股拓撲。</li>
+<li><b>fixedQ 只改水量不改負荷、收斂以絕對值判定且混用 m³/d 與 kg/d（中）</b>：新版不保留 fixedQ，收斂以含水量尺度之容許值判定，未收斂時標示 NOT_CONVERGED 不顯示為平衡。</li>
+<li><b>化學污泥憑空增加固體（低）</b>：新版列為「化學產生」計入輸入。</li></ol>
+<h3>已知限制（請勿略過）</h3><ul><li>去除率模型，非 ASM 動力學；RAS 以單元水相濃度攜帶，SS 低估於實際底流濃度。</li><li>濾液以「濾液回流」流股送回任一單元（預設回調整池）；未接濾液流股時，側流水視為不含負荷。</li><li>進流水單元限 1 個；單元類型僅影響求解規則（沉澱／生物池可有污泥流股，無水流股的污泥單元視為污泥線）。Excel 功能使用內嵌的 SheetJS 0.20.3（Apache-2.0），完全離線；其完整性以 SHA-256 釘選並於 CI 驗證。</li><li>智慧節能頁由共用模型的流量與負荷推估曝氣與泵浦電耗；參數為教科書典型範圍／占位值，非任何廠的實測值，未含攪拌、加熱、藥劑、儀控等負載，且不連接即時量測或設備控制。</li></ul>
+<h3>治理</h3><ul><li>全部運算於本機，無外部連線；不蒐集個資。示範數據不得作為放流許可、法規申報或採購依據。</li><li>結果須由專業人員覆核；如接真實設備，寫入／控制須「預覽→確認→執行」並人工核准及留存稽核紀錄。</li></ul></div>`;
+addEventListener("hashchange",()=>show(location.hash.slice(1)));refresh();show(location.hash.slice(1)||"ov");
+</script></body></html>
