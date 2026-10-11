@@ -6,7 +6,10 @@
   "scripts": {
     "test": "node --test",
     "build": "node scripts/build.js",
-    "check": "npm test && npm run build"
+    "check": "npm test && npm run build",
+    "fetch:sheetjs": "node scripts/fetch-sheetjs.js",
+    "pretest": "node scripts/fetch-sheetjs.js",
+    "prebuild": "node scripts/fetch-sheetjs.js"
   },
   "engines": {
     "node": ">=20"
