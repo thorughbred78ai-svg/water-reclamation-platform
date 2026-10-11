@@ -1,3 +1,2 @@
-node_modules/
-dist/
-.DS_Store
+vendor/* -text
+*.sha256 text eol=lf
