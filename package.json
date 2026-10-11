@@ -1,0 +1,18 @@
+{
+  "name": "water-reclamation-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "水資源回收中心整合平台：穩態質量平衡、濾液回流、能耗推估（單一 HTML，純前端）",
+  "scripts": {
+    "test": "node --test",
+    "build": "node scripts/build.js",
+    "check": "npm test && npm run build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "jsdom": "^30.1.2"
+  }
+}
