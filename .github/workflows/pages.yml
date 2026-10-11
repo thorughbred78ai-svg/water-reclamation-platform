@@ -24,17 +24,8 @@ jobs:
         with:
           node-version: 20
       - run: npm ci --no-audit --no-fund
-      - name: 下載官方 SheetJS 0.20.3
-        run: |
-          curl -fsSL --max-time 60 -o vendor/xlsx.full.min.js https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js
-          echo "cc015130aa8521e7f088f88898eba949ccdcbfb38df0bd129b44b7273c3a6f41  xlsx.full.min.js" > vendor/xlsx.full.min.js.sha256
-      - name: 驗證內嵌 SheetJS 與官方發行檔一致
-        run: |
-          curl -fsSL --max-time 60 -o /tmp/official.js https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js || { echo "::warning::無法連線官方 CDN，略過比對"; exit 0; }
-          official=$(sha256sum /tmp/official.js | cut -d' ' -f1)
-          pinned=$(cut -d' ' -f1 vendor/xlsx.full.min.js.sha256)
-          if [ "$official" != "$pinned" ]; then echo "::error::vendor/xlsx.full.min.js 與官方 0.20.3 不一致（官方 $official／釘選 $pinned）。請改用官方檔案並更新 .sha256。"; exit 1; fi
-          echo "與官方一致：$official"
+      - name: 取得官方 SheetJS 並以倉庫釘選雜湊驗證（不符即失敗）
+        run: node scripts/fetch-sheetjs.js
       - name: 自動測試（求解器守恆、驗證、Excel 轉換、能耗）
         run: npm test
       - name: 建置單一 HTML
@@ -44,6 +35,10 @@ jobs:
           test -s dist/index.html
           grep -q "水資源回收中心整合平台" dist/index.html
           ! grep -q "/\*ENGINE\*/" dist/index.html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: index-html
+          path: dist/index.html
       - uses: actions/configure-pages@v5
         if: github.event_name != 'pull_request'
       - uses: actions/upload-pages-artifact@v3
