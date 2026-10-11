@@ -8,7 +8,8 @@
 
 ## 專案結構
 ```
-vendor/              內嵌的 SheetJS 與其 SHA-256、授權
+vendor/              SheetJS 釘選雜湊與授權（官方檔由建置時下載）
+scripts/fetch-sheetjs.js  下載並驗證 SheetJS
 src/engine.js        求解器、驗證、Excel 轉換、能耗（純函式，可測試）
 src/template.html    介面（含 /*ENGINE*/ 佔位符）
 scripts/build.js     內嵌 engine → dist/index.html（單一檔案）
@@ -31,10 +32,11 @@ npm run build     # 產生 dist/index.html（可直接用瀏覽器開啟）
 
 ## 安全與維運注意
 - 頁面以 CSP meta 限制連線，且**不載入任何外部腳本**；Excel 功能使用內嵌的 SheetJS 0.20.3（`vendor/xlsx.full.min.js`，Apache-2.0，授權見 `vendor/LICENSE-SheetJS.txt`），完全離線可用。
-- SheetJS 完整性：建置時比對 `vendor/*.sha256`；CI 另會下載官方 `cdn.sheetjs.com` 同版檔案比對 SHA-256，不一致即失敗。**目前 vendor 檔來源為 npm 套件 `@e965/xlsx@0.20.3`（第三方自動轉發官方發行檔），尚未與官方檔比對**；請以首次 CI 結果為準，若失敗請改用官方檔：
-  `curl -o vendor/xlsx.full.min.js https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js && (cd vendor && sha256sum xlsx.full.min.js > xlsx.full.min.js.sha256)`
-- 升級 SheetJS 時請同步更新 vendor 檔、`.sha256` 與 workflow 內的版本網址；避免使用 npm 上的 `xlsx@0.18.5`（有已知漏洞）。
+- SheetJS 完整性：官方檔 **不提交進倉庫**（已列入 .gitignore）。`npm test`／`npm run build` 前會執行 `scripts/fetch-sheetjs.js`：從 `cdn.sheetjs.com` 下載 0.20.3，並與 `vendor/xlsx.full.min.js.sha256` 的**釘選雜湊**比對，不符就不寫檔、建置失敗。**請勿在 CI 內改寫 .sha256**，否則驗證形同虛設。
+- 釘選值的來源：取自一次 CI 對官方 CDN 的實際下載結果（首次信任）。建議再以獨立管道（另一台機器／另一網路）下載同一網址並 `sha256sum` 交叉確認。
+- 不要使用 npm 第三方轉發套件（如 `@e965/xlsx`）：實測其 0.20.3 發行檔與官方檔雜湊不同；也不要用 `xlsx@0.18.5`（有已知漏洞）。
+- 離線環境：在可連網機器下載官方檔後，放到 `vendor/xlsx.full.min.js`，雜湊須符合釘選值。
+- 升級 SheetJS：修改 `scripts/fetch-sheetjs.js` 的網址與 `.sha256`（以獨立管道確認新版雜湊）。
 - GitHub Pages 為公開網站，**請勿放入真實廠區資料或機敏資訊**；政府內部使用請部署到機關核准的內部主機。
 - Workflow 使用 `actions/*` 官方 action 的主版本標籤；正式環境建議改為釘選 commit SHA，並定期檢查是否有新版。
 - 匯入的 JSON／Excel 視為不受信任輸入，已做大小、列數、欄位型別與範圍驗證。
-
