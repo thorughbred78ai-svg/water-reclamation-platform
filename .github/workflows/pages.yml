@@ -1,0 +1,62 @@
+name: Test, Build & Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# 最小權限：預設唯讀；部署工作另行授權
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci --no-audit --no-fund
+      - name: 驗證內嵌 SheetJS 與官方發行檔一致
+        run: |
+          curl -fsSL --max-time 60 -o /tmp/official.js https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js || { echo "::warning::無法連線官方 CDN，略過比對"; exit 0; }
+          official=$(sha256sum /tmp/official.js | cut -d' ' -f1)
+          pinned=$(cut -d' ' -f1 vendor/xlsx.full.min.js.sha256)
+          if [ "$official" != "$pinned" ]; then echo "::error::vendor/xlsx.full.min.js 與官方 0.20.3 不一致（官方 $official／釘選 $pinned）。請改用官方檔案並更新 .sha256。"; exit 1; fi
+          echo "與官方一致：$official"
+      - name: 自動測試（求解器守恆、驗證、Excel 轉換、能耗）
+        run: npm test
+      - name: 建置單一 HTML
+        run: npm run build
+      - name: 檢查輸出
+        run: |
+          test -s dist/index.html
+          grep -q "水資源回收中心整合平台" dist/index.html
+          ! grep -q "/\*ENGINE\*/" dist/index.html
+      - uses: actions/configure-pages@v5
+        if: github.event_name != 'pull_request'
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
+        with:
+          path: dist
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
