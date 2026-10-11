@@ -1,2 +1,4 @@
-vendor/* -text
-*.sha256 text eol=lf
+node_modules/
+dist/
+.DS_Store
+vendor/xlsx.full.min.js
